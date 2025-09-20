@@ -174,7 +174,7 @@ namespace Ankh.Scc
 
                     _hookedProjects = true;
                 }
-                else if (_hookedProjects)
+                else if (_hookedProjects && tracker != null)
                 {
                     Marshal.ThrowExceptionForHR(tracker.UnadviseTrackProjectDocumentsEvents(_projectCookie));
                     _hookedProjects = false;

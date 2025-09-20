@@ -13,6 +13,7 @@
 //  limitations under the License.
 
 using System;
+using System.Diagnostics;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Windows.Forms;
@@ -111,43 +112,50 @@ namespace Ankh.Commands
             if (targets.Count == 0)
                 return;
 
-            bool ignoreEols = true;
-            SvnIgnoreSpacing ignoreSpacing = SvnIgnoreSpacing.IgnoreSpace;
-            bool retrieveMergeInfo = false;
-            SvnOrigin target;
+            DoBlameExternal(targets);
 
-            if ((!e.DontPrompt && !Shift) || e.PromptUser)
-                using (AnnotateDialog dlg = new AnnotateDialog())
+            if (false)
+            {
+                bool ignoreEols = true;
+                SvnIgnoreSpacing ignoreSpacing = SvnIgnoreSpacing.IgnoreSpace;
+                bool retrieveMergeInfo = false;
+                SvnOrigin target;
+
+                if ((!e.DontPrompt && !Shift) || e.PromptUser)
+                    using (AnnotateDialog dlg = new AnnotateDialog())
+                    {
+                        dlg.SetTargets(targets);
+                        dlg.StartRevision = startRev;
+                        dlg.EndRevision = endRev;
+
+                        if (dlg.ShowDialog(e.Context) != DialogResult.OK)
+                            return;
+
+                        target = dlg.SelectedTarget;
+                        startRev = dlg.StartRevision;
+                        endRev = dlg.EndRevision;
+                        ignoreEols = dlg.IgnoreEols;
+                        ignoreSpacing = dlg.IgnoreSpacing;
+                        retrieveMergeInfo = dlg.RetrieveMergeInfo;
+                    }
+                else
                 {
-                    dlg.SetTargets(targets);
-                    dlg.StartRevision = startRev;
-                    dlg.EndRevision = endRev;
+                    SvnItem one = EnumTools.GetFirst(e.Selection.GetSelectedSvnItems(false));
 
-                    if (dlg.ShowDialog(e.Context) != DialogResult.OK)
+                    if (one == null)
                         return;
 
-                    target = dlg.SelectedTarget;
-                    startRev = dlg.StartRevision;
-                    endRev = dlg.EndRevision;
-                    ignoreEols = dlg.IgnoreEols;
-                    ignoreSpacing = dlg.IgnoreSpacing;
-                    retrieveMergeInfo = dlg.RetrieveMergeInfo;
+                    target = new SvnOrigin(one);
                 }
-            else
-            {
-                SvnItem one = EnumTools.GetFirst(e.Selection.GetSelectedSvnItems(false));
 
-                if (one == null)
-                    return;
+                if (startRev == SvnRevision.Working || endRev == SvnRevision.Working && target.Target is SvnPathTarget)
+                {
+                    IAnkhOpenDocumentTracker tracker = e.GetService<IAnkhOpenDocumentTracker>();
+                    if (tracker != null)
+                        tracker.SaveDocument(((SvnPathTarget)target.Target).FullPath);
+                }
 
-                target = new SvnOrigin(one);
-            }
-
-            if (startRev == SvnRevision.Working || endRev == SvnRevision.Working && target.Target is SvnPathTarget)
-            {
-                IAnkhOpenDocumentTracker tracker = e.GetService<IAnkhOpenDocumentTracker>();
-                if (tracker != null)
-                    tracker.SaveDocument(((SvnPathTarget)target.Target).FullPath);
+                DoBlame(e, target, startRev, endRev, ignoreEols, ignoreSpacing, retrieveMergeInfo);
             }
 
             DoBlame(e, target, startRev, endRev, ignoreEols, ignoreSpacing, retrieveMergeInfo);
@@ -182,6 +190,38 @@ namespace Ankh.Commands
 
             GC.KeepAlive(ex);
         }*/
+
+        /*
+         * 
+---------------------------
+TortoiseBlame
+---------------------------
+TortoiseBlame should not be started directly! Use
+TortoiseProc.exe /command:blame /path:"path\to\file"
+instead.
+
+TortoiseBlame.exe blamefile [logfile [viewtitle]] [/line:linenumber] [/path:originalpath] [/pegrev:peg] [/revrange:text] [/ignoreeol] [/ignorespaces] [/ignoreallspaces]
+*/
+
+        static void DoBlameExternal(List<SvnOrigin> targets)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo();
+            startInfo.FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseProc.exe";
+            startInfo.Arguments = string.Format("/command:blame /path:{0}",targets[0]);
+
+            try
+            {
+                Process.Start(startInfo);
+
+            }
+            catch (System.Exception e)
+            { 
+              
+                MessageBox.Show(string.Format("Blame requires tortoise svn\nPlease ensure {0} exists",startInfo.FileName), "Error",
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+            
+            }
+        }
 
         static void DoBlame(CommandEventArgs e, SvnOrigin item, SvnRevision revisionStart, SvnRevision revisionEnd, bool ignoreEols, SvnIgnoreSpacing ignoreSpacing, bool retrieveMergeInfo)
         {
@@ -245,6 +285,8 @@ namespace Ankh.Commands
             if (!r.Succeeded)
                 return;
 
+            #region 
+            #endregion
             AnnotateEditorControl annEditor = null;
             IAnkhEditorResolver er = null;
 
