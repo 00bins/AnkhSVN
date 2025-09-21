@@ -26,6 +26,7 @@ using Ankh.VS;
 using SharpSvn;
 using System.Collections.Generic;
 using Ankh.UI.Commands;
+using Microsoft.Win32;
 
 namespace Ankh.Commands
 {
@@ -158,7 +159,6 @@ namespace Ankh.Commands
                 DoBlame(e, target, startRev, endRev, ignoreEols, ignoreSpacing, retrieveMergeInfo);
             }
 
-            DoBlame(e, target, startRev, endRev, ignoreEols, ignoreSpacing, retrieveMergeInfo);
         }
 
         /*private void TryObtainBlock(CommandEventArgs e)
@@ -201,12 +201,37 @@ TortoiseProc.exe /command:blame /path:"path\to\file"
 instead.
 
 TortoiseBlame.exe blamefile [logfile [viewtitle]] [/line:linenumber] [/path:originalpath] [/pegrev:peg] [/revrange:text] [/ignoreeol] [/ignorespaces] [/ignoreallspaces]
+Key Name:          HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{30351346-7B7D-4FCC-81B4-1E394CA267EB}\InProcServer32
+Class Name:        <NO CLASS>
+Last Write Time:   05/02/2024 - 17:04
+Value 0
+  Name:            <NO NAME>
+  Type:            REG_SZ
+  Data:            C:\Program Files\TortoiseSVN\bin\TortoiseStub.dll
 */
 
         static void DoBlameExternal(List<SvnOrigin> targets)
         {
+            object tsvn = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{30351346-7B7D-4FCC-81B4-1E394CA267EB}\InProcServer32",null,null);
+
+            if(object.Equals(tsvn, null))
+            {
+                MessageBox.Show(string.Format("Blame requires tortoise svn\nPlease ensure it is installed"), "Error",
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+                return;
+            }
+
+            string tproc = tsvn.ToString().Replace("Stub.dll", "Proc.exe");
+
+            if(string.Equals(tproc,tsvn.ToString()))
+            {
+                MessageBox.Show(string.Format("Blame can't deduce tortoisproc.exe path from registry\nPlease ensure TortoiseSVN is installed"), "Error",
+                    System.Windows.Forms.MessageBoxButtons.OK, System.Windows.Forms.MessageBoxIcon.Information);
+                return;
+            }
+
             ProcessStartInfo startInfo = new ProcessStartInfo();
-            startInfo.FileName = "C:\\Program Files\\TortoiseSVN\\bin\\TortoiseProc.exe";
+            startInfo.FileName = tproc;
             startInfo.Arguments = string.Format("/command:blame /path:{0}",targets[0]);
 
             try
